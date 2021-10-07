@@ -1,9 +1,17 @@
+using Demo;
+using Microsoft.Extensions.Logging.Console;
+using System.Text.Json;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Logging.ClearProviders().AddConsole().AddCustomFormatter(o =>
+    {
+        o.CustomPrefix = Environment.NewLine + " >>> ";
+        o.ColorBehavior = LoggerColorBehavior.Default;
+    });
 
 var app = builder.Build();
 
@@ -21,9 +29,18 @@ var summaries = new[]
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 };
 
-app.MapGet("/weatherforecast", () =>
+app.MapGet("/", async context =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    Log.HelloWorld(logger);
+    await context.Response.WriteJsonAsync(nameof(Log.HelloWorld));
+})
+.WithName("Index");
+
+app.MapGet("/weatherforecast", async context =>
+{
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    var forecast = Enumerable.Range(1, 5).Select(index =>
         new WeatherForecast
         (
             DateTime.Now.AddDays(index),
@@ -31,7 +48,12 @@ app.MapGet("/weatherforecast", () =>
             summaries[Random.Shared.Next(summaries.Length)]
         ))
         .ToArray();
-    return forecast;
+    foreach (WeatherForecast forecastOnDay in forecast)
+    {
+        Log.GotWeatherForecastWithSummary(logger, forecastOnDay.Summary!);
+    }
+    string jsonString = JsonSerializer.Serialize(forecast);
+    await context.Response.WriteJsonAsync(jsonString);
 })
 .WithName("GetWeatherForecast");
 
